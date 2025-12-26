@@ -81,6 +81,9 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
         "max_iterations": 300,
         "non_interactive": True,
     }
+    
+    # Add model info to scan config for tracing
+    scan_config["model_name"] = llm_config.model_name
 
     if getattr(args, "local_sources", None):
         agent_config["local_sources"] = args.local_sources
@@ -120,11 +123,36 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
 
     tracer.vulnerability_found_callback = display_vulnerability
 
-    def cleanup_on_exit() -> None:
+    def cleanup_resources() -> None:
         tracer.cleanup()
+        # Clean up runtime resources (containers)
+        from strix.runtime import get_runtime
+        import asyncio
+        
+        try:
+            runtime = get_runtime()
+            # We need to run the async cleanup in a sync context
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If loop is running, we can't use run_until_complete directly on it easily
+                    # from a signal handler, but create_task might not finish.
+                    # For CLI exit, usually loop is closed or we are outside.
+                    # Best effort for now:
+                    pass 
+                else:
+                    loop.run_until_complete(runtime.cleanup())
+            except RuntimeError:
+                asyncio.run(runtime.cleanup())
+        except Exception as e:
+            # If get_runtime fails (e.g. init error) or cleanup fails, just ignore
+            pass
+
+    def cleanup_on_exit() -> None:
+        cleanup_resources()
 
     def signal_handler(_signum: int, _frame: Any) -> None:
-        tracer.cleanup()
+        cleanup_resources()
         sys.exit(1)
 
     atexit.register(cleanup_on_exit)

@@ -27,3 +27,8 @@ class AbstractRuntime(ABC):
     @abstractmethod
     async def destroy_sandbox(self, container_id: str) -> None:
         raise NotImplementedError
+
+    @abstractmethod
+    async def cleanup(self) -> None:
+        """Clean up all resources managed by the runtime (e.g. stop all containers)."""
+        raise NotImplementedError

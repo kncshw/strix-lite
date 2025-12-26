@@ -14,6 +14,7 @@ from typing import Any
 
 import litellm
 from docker.errors import DockerException
+from dotenv import load_dotenv
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -62,8 +63,8 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
     if not has_base_url:
         missing_optional_vars.append("LLM_API_BASE")
 
-    if not os.getenv("PERPLEXITY_API_KEY"):
-        missing_optional_vars.append("PERPLEXITY_API_KEY")
+    if not os.getenv("FIRECRAWL_API_KEY"):
+        missing_optional_vars.append("FIRECRAWL_API_KEY")
 
     if missing_required_vars:
         error_text = Text()
@@ -109,11 +110,11 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
                         " - Custom API base URL if using local models (e.g., Ollama, LMStudio)\n",
                         style="white",
                     )
-                elif var == "PERPLEXITY_API_KEY":
+                elif var == "FIRECRAWL_API_KEY":
                     error_text.append("• ", style="white")
-                    error_text.append("PERPLEXITY_API_KEY", style="bold cyan")
+                    error_text.append("FIRECRAWL_API_KEY", style="bold cyan")
                     error_text.append(
-                        " - API key for Perplexity AI web search (enables real-time research)\n",
+                        " - API key for Firecrawl web search (enables real-time research)\n",
                         style="white",
                     )
 
@@ -134,9 +135,9 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
                         "# needed for local models only\n",
                         style="dim white",
                     )
-                elif var == "PERPLEXITY_API_KEY":
+                elif var == "FIRECRAWL_API_KEY":
                     error_text.append(
-                        "export PERPLEXITY_API_KEY='your-perplexity-key-here'\n", style="dim white"
+                        "export FIRECRAWL_API_KEY='your-firecrawl-key-here'\n", style="dim white"
                     )
 
         panel = Panel(
@@ -244,7 +245,7 @@ def get_version() -> str:
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Strix Multi-Agent Cybersecurity Penetration Testing Tool",
+        description="Strix Simplified AI Cybersecurity Penetration Testing Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -496,6 +497,8 @@ def pull_docker_image() -> None:
 
 
 def main() -> None:
+    load_dotenv()
+
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
@@ -508,7 +511,10 @@ def main() -> None:
     asyncio.run(warm_up_llm())
 
     if not args.run_name:
-        args.run_name = generate_run_name(args.targets_info)
+        model_name = os.getenv("STRIX_LLM", "openai/gpt-5")
+        # Extract simple model name if possible (e.g. 'gpt-5' from 'openai/gpt-5')
+        simple_model_name = model_name.split("/")[-1]
+        args.run_name = generate_run_name(args.targets_info, simple_model_name)
 
     for target_info in args.targets_info:
         if target_info["type"] == "repository":
@@ -526,6 +532,14 @@ def main() -> None:
 
     results_path = Path("strix_runs") / args.run_name
     display_completion_message(args, results_path)
+
+    # Cleanup runtime resources (e.g. Docker container)
+    from strix.runtime import get_runtime
+    try:
+        runtime = get_runtime()
+        asyncio.run(runtime.cleanup())
+    except Exception:
+        pass
 
     if args.non_interactive:
         tracer = get_global_tracer()

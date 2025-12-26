@@ -88,62 +88,17 @@ class BaseAgent(metaclass=AgentMeta):
                 agent_id=self.state.agent_id,
                 name=self.state.agent_name,
                 task=self.state.task,
-                parent_id=self.state.parent_id,
+                parent_id=None,
             )
-            if self.state.parent_id is None:
-                scan_config = tracer.scan_config or {}
-                exec_id = tracer.log_tool_execution_start(
-                    agent_id=self.state.agent_id,
-                    tool_name="scan_start_info",
-                    args=scan_config,
-                )
-                tracer.update_tool_execution(execution_id=exec_id, status="completed", result={})
-
-            else:
-                exec_id = tracer.log_tool_execution_start(
-                    agent_id=self.state.agent_id,
-                    tool_name="subagent_start_info",
-                    args={
-                        "name": self.state.agent_name,
-                        "task": self.state.task,
-                        "parent_id": self.state.parent_id,
-                    },
-                )
-                tracer.update_tool_execution(execution_id=exec_id, status="completed", result={})
-
-        self._add_to_agents_graph()
-
-    def _add_to_agents_graph(self) -> None:
-        from strix.tools.agents_graph import agents_graph_actions
-
-        node = {
-            "id": self.state.agent_id,
-            "name": self.state.agent_name,
-            "task": self.state.task,
-            "status": "running",
-            "parent_id": self.state.parent_id,
-            "created_at": self.state.start_time,
-            "finished_at": None,
-            "result": None,
-            "llm_config": self.llm_config_name,
-            "agent_type": self.__class__.__name__,
-            "state": self.state.model_dump(),
-        }
-        agents_graph_actions._agent_graph["nodes"][self.state.agent_id] = node
-
-        agents_graph_actions._agent_instances[self.state.agent_id] = self
-        agents_graph_actions._agent_states[self.state.agent_id] = self.state
-
-        if self.state.parent_id:
-            agents_graph_actions._agent_graph["edges"].append(
-                {"from": self.state.parent_id, "to": self.state.agent_id, "type": "delegation"}
+            tracer.register_agent(self)
+            
+            scan_config = tracer.scan_config or {}
+            exec_id = tracer.log_tool_execution_start(
+                agent_id=self.state.agent_id,
+                tool_name="scan_start_info",
+                args=scan_config,
             )
-
-        if self.state.agent_id not in agents_graph_actions._agent_messages:
-            agents_graph_actions._agent_messages[self.state.agent_id] = []
-
-        if self.state.parent_id is None and agents_graph_actions._root_agent_id is None:
-            agents_graph_actions._root_agent_id = self.state.agent_id
+            tracer.update_tool_execution(execution_id=exec_id, status="completed", result={})
 
     def cancel_current_execution(self) -> None:
         if self._current_task and not self._current_task.done():
@@ -158,8 +113,6 @@ class BaseAgent(metaclass=AgentMeta):
         tracer = get_global_tracer()
 
         while True:
-            self._check_agent_messages(self.state)
-
             if self.state.is_waiting_for_input():
                 await self._wait_for_input()
                 continue
@@ -187,17 +140,14 @@ class BaseAgent(metaclass=AgentMeta):
                     f"Current: {self.state.iteration}/{self.state.max_iterations} "
                     f"({remaining} iterations remaining). "
                     f"Please prioritize completing your required task(s) and calling "
-                    f"the appropriate finish tool (finish_scan for root agent, "
-                    f"agent_finish for sub-agents) as soon as possible."
+                    f"the finish_scan tool as soon as possible."
                 )
                 self.state.add_message("user", warning_msg)
 
             if self.state.iteration == self.state.max_iterations - 3:
                 final_warning_msg = (
                     "CRITICAL: You have only 3 iterations left! "
-                    "Your next message MUST be the tool call to the appropriate "
-                    "finish tool: finish_scan if you are the root agent, or "
-                    "agent_finish if you are a sub-agent. "
+                    "Your next message MUST be the tool call to finish_scan. "
                     "No other actions should be taken except finishing your work "
                     "immediately."
                 )
@@ -277,14 +227,6 @@ class BaseAgent(metaclass=AgentMeta):
             if tracer:
                 tracer.update_agent_status(self.state.agent_id, "running")
 
-            try:
-                from strix.tools.agents_graph.agents_graph_actions import _agent_graph
-
-                if self.state.agent_id in _agent_graph["nodes"]:
-                    _agent_graph["nodes"][self.state.agent_id]["status"] = "running"
-            except (ImportError, KeyError):
-                pass
-
             return
 
         await asyncio.sleep(0.5)
@@ -359,12 +301,7 @@ class BaseAgent(metaclass=AgentMeta):
             corrective_message = (
                 "You MUST NOT respond with empty messages. "
                 "If you currently have nothing to do or say, use an appropriate tool instead:\n"
-                "- Use agents_graph_actions.wait_for_message to wait for messages "
-                "from user or other agents\n"
-                "- Use agents_graph_actions.agent_finish if you are a sub-agent "
-                "and your task is complete\n"
-                "- Use finish_actions.finish_scan if you are the root/main agent "
-                "and the scan is complete"
+                "- Use finish_actions.finish_scan if the scan is complete"
             )
             self.state.add_message("user", corrective_message)
             return False
@@ -414,8 +351,6 @@ class BaseAgent(metaclass=AgentMeta):
             self.state.set_completed({"success": True})
             if tracer:
                 tracer.update_agent_status(self.state.agent_id, "completed")
-            if self.non_interactive and self.state.parent_id is None:
-                return True
             return True
 
         return False
@@ -431,88 +366,3 @@ class BaseAgent(metaclass=AgentMeta):
         if tracer:
             tracer.update_agent_status(self.state.agent_id, "error")
         return True
-
-    def _check_agent_messages(self, state: AgentState) -> None:  # noqa: PLR0912
-        try:
-            from strix.tools.agents_graph.agents_graph_actions import _agent_graph, _agent_messages
-
-            agent_id = state.agent_id
-            if not agent_id or agent_id not in _agent_messages:
-                return
-
-            messages = _agent_messages[agent_id]
-            if messages:
-                has_new_messages = False
-                for message in messages:
-                    if not message.get("read", False):
-                        sender_id = message.get("from")
-
-                        if state.is_waiting_for_input():
-                            if state.llm_failed:
-                                if sender_id == "user":
-                                    state.resume_from_waiting()
-                                    has_new_messages = True
-
-                                    from strix.telemetry.tracer import get_global_tracer
-
-                                    tracer = get_global_tracer()
-                                    if tracer:
-                                        tracer.update_agent_status(state.agent_id, "running")
-                            else:
-                                state.resume_from_waiting()
-                                has_new_messages = True
-
-                                from strix.telemetry.tracer import get_global_tracer
-
-                                tracer = get_global_tracer()
-                                if tracer:
-                                    tracer.update_agent_status(state.agent_id, "running")
-
-                        if sender_id == "user":
-                            sender_name = "User"
-                            state.add_message("user", message.get("content", ""))
-                        else:
-                            if sender_id and sender_id in _agent_graph.get("nodes", {}):
-                                sender_name = _agent_graph["nodes"][sender_id]["name"]
-
-                            message_content = f"""<inter_agent_message>
-    <delivery_notice>
-        <important>You have received a message from another agent. You should acknowledge
-        this message and respond appropriately based on its content. However, DO NOT echo
-        back or repeat the entire message structure in your response. Simply process the
-        content and respond naturally as/if needed.</important>
-    </delivery_notice>
-    <sender>
-        <agent_name>{sender_name}</agent_name>
-        <agent_id>{sender_id}</agent_id>
-    </sender>
-    <message_metadata>
-        <type>{message.get("message_type", "information")}</type>
-        <priority>{message.get("priority", "normal")}</priority>
-        <timestamp>{message.get("timestamp", "")}</timestamp>
-    </message_metadata>
-    <content>
-{message.get("content", "")}
-    </content>
-    <delivery_info>
-        <note>This message was delivered during your task execution.
-        Please acknowledge and respond if needed.</note>
-    </delivery_info>
-</inter_agent_message>"""
-                            state.add_message("user", message_content.strip())
-
-                        message["read"] = True
-
-                if has_new_messages and not state.is_waiting_for_input():
-                    from strix.telemetry.tracer import get_global_tracer
-
-                    tracer = get_global_tracer()
-                    if tracer:
-                        tracer.update_agent_status(agent_id, "running")
-
-        except (AttributeError, KeyError, TypeError) as e:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Error checking agent messages: {e}")
-            return

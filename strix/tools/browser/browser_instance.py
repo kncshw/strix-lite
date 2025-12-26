@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
+from playwright_stealth import stealth_async
 
 
 logger = logging.getLogger(__name__)
@@ -88,18 +89,23 @@ class BrowserInstance:
                 "--disable-gpu",
                 "--disable-web-security",
                 "--disable-features=VizDisplayCompositor",
+                "--disable-blink-features=AutomationControlled",
             ],
         )
 
         self.context = await self.browser.new_context(
-            viewport={"width": 1280, "height": 720},
+            viewport={"width": 1920, "height": 1080},
             user_agent=(
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             ),
+            locale="en-US",
+            timezone_id="America/New_York",
         )
 
         page = await self.context.new_page()
+        await stealth_async(page)
+        
         tab_id = f"tab_{self._next_tab_id}"
         self._next_tab_id += 1
         self.pages[tab_id] = page
@@ -269,6 +275,8 @@ class BrowserInstance:
             raise ValueError("Browser not launched")
 
         page = await self.context.new_page()
+        await stealth_async(page)
+        
         tab_id = f"tab_{self._next_tab_id}"
         self._next_tab_id += 1
         self.pages[tab_id] = page

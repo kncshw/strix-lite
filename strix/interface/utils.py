@@ -115,12 +115,8 @@ def build_final_stats_text(tracer: Any) -> Text:
     _build_vulnerability_stats(stats_text, tracer)
 
     tool_count = tracer.get_real_tool_count()
-    agent_count = len(tracer.agents)
 
-    stats_text.append("🤖 Agents Used: ", style="bold cyan")
-    stats_text.append(str(agent_count), style="bold white")
-    stats_text.append(" • ", style="dim white")
-    stats_text.append("🛠️ Tools Called: ", style="bold cyan")
+    stats_text.append("🛠️  Tools Called: ", style="bold cyan")
     stats_text.append(str(tool_count), style="bold white")
 
     llm_stats = tracer.get_total_llm_stats()
@@ -171,10 +167,7 @@ def build_live_stats_text(tracer: Any, agent_config: dict[str, Any] | None = Non
         stats_text.append(f"🧠 Model: {model}")
         stats_text.append("\n")
 
-    stats_text.append("🤖 Agents: ", style="bold white")
-    stats_text.append(str(agent_count), style="dim white")
-    stats_text.append(" • ", style="dim white")
-    stats_text.append("🛠️ Tools: ", style="bold white")
+    stats_text.append("🛠️  Tools: ", style="bold white")
     stats_text.append(str(tool_count), style="dim white")
 
     llm_stats = tracer.get_total_llm_stats()
@@ -253,13 +246,22 @@ def _derive_target_label_for_run_name(targets_info: list[dict[str, Any]] | None)
     return str(original or "pentest")
 
 
-def generate_run_name(targets_info: list[dict[str, Any]] | None = None) -> str:
+def generate_run_name(
+    targets_info: list[dict[str, Any]] | None = None, model_name: str | None = None
+) -> str:
     base_label = _derive_target_label_for_run_name(targets_info)
-    slug = _slugify_for_run_name(base_label)
+    target_slug = _slugify_for_run_name(base_label)
+    
+    parts = [target_slug]
+    
+    if model_name:
+        model_slug = _slugify_for_run_name(model_name)
+        parts.append(model_slug)
 
     random_suffix = secrets.token_hex(2)
+    parts.append(random_suffix)
 
-    return f"{slug}_{random_suffix}"
+    return "_".join(parts)
 
 
 # Target processing utilities

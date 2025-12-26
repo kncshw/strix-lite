@@ -22,13 +22,11 @@ from .registry import (
 
 SANDBOX_MODE = os.getenv("STRIX_SANDBOX_MODE", "false").lower() == "true"
 
-HAS_PERPLEXITY_API = bool(os.getenv("PERPLEXITY_API_KEY"))
+HAS_FIRECRAWL_API = bool(os.getenv("FIRECRAWL_API_KEY"))
 
 DISABLE_BROWSER = os.getenv("STRIX_DISABLE_BROWSER", "false").lower() == "true"
 
 if not SANDBOX_MODE:
-    from .agents_graph import *  # noqa: F403
-
     if not DISABLE_BROWSER:
         from .browser import *  # noqa: F403
     from .file_edit import *  # noqa: F403
@@ -41,7 +39,7 @@ if not SANDBOX_MODE:
     from .thinking import *  # noqa: F403
     from .todo import *  # noqa: F403
 
-    if HAS_PERPLEXITY_API:
+    if HAS_FIRECRAWL_API:
         from .web_search import *  # noqa: F403
 else:
     if not DISABLE_BROWSER:

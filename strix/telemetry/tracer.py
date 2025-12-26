@@ -53,6 +53,10 @@ class Tracer:
         self._saved_vuln_ids: set[str] = set()
 
         self.vulnerability_found_callback: Callable[[str, str, str, str], None] | None = None
+        self._active_agents: list[Any] = []
+
+    def register_agent(self, agent: Any) -> None:
+        self._active_agents.append(agent)
 
     def set_run_name(self, run_name: str) -> None:
         self.run_name = run_name
@@ -272,7 +276,102 @@ class Tracer:
                         f"Saved {len(new_reports)} new vulnerability report(s) to: {vuln_dir}"
                     )
                 logger.info(f"Updated vulnerability index: {vuln_csv_file}")
+            
+            # Save human-readable session log in Markdown format
+            session_log_file = run_dir / "session_log.md"
+            
+            with session_log_file.open("w", encoding="utf-8") as f:
+                f.write(f"# Strix Penetration Test Session Log\n\n")
+                f.write(f"- **Run ID:** `{self.run_id}`\n")
+                f.write(f"- **Start Time:** {self.start_time}\n")
+                if self.end_time:
+                    f.write(f"- **End Time:** {self.end_time}\n")
+                
+                if self.scan_config:
+                    model = self.scan_config.get("model_name", "Unknown")
+                    f.write(f"- **Model Used:** `{model}`\n")
+                    
+                    instructions = self.scan_config.get("user_instructions")
+                    if instructions:
+                        f.write(f"- **User Special Prompt:** {instructions}\n")
+                    
+                    targets = self.scan_config.get("targets", [])
+                    f.write("- **Targets:**\n")
+                    for t in targets:
+                        f.write(f"  - {t.get('original', 'Unknown')}\n")
+                
+                # Add LLM Statistics
+                stats = self.get_total_llm_stats()
+                total = stats["total"]
+                f.write(f"- **Input Tokens:** {total['input_tokens']:,}\n")
+                f.write(f"- **Output Tokens:** {total['output_tokens']:,}\n")
+                f.write(f"- **Total Tokens:** {stats['total_tokens']:,}\n")
+                f.write(f"- **Estimated Cost:** ${total['cost']:.4f}\n")
+                
+                f.write("\n---\n\n")
 
+                # Combine chat and tools into a single chronological timeline
+                timeline = []
+                for msg in self.chat_messages:
+                    timeline.append({
+                        "timestamp": msg["timestamp"],
+                        "type": "chat",
+                        "data": msg
+                    })
+                
+                for exec_id, tool in self.tool_executions.items():
+                    timeline.append({
+                        "timestamp": tool["timestamp"],
+                        "type": "tool_start",
+                        "data": tool
+                    })
+                    if tool.get("completed_at"):
+                        timeline.append({
+                            "timestamp": tool["completed_at"],
+                            "type": "tool_result",
+                            "data": tool
+                        })
+
+                # Sort by timestamp
+                timeline.sort(key=lambda x: x["timestamp"])
+
+                for event in timeline:
+                    ts = event["timestamp"].split("T")[-1].split(".")[0] # Simple HH:MM:SS
+                    data = event["data"]
+                    
+                    if event["type"] == "chat":
+                        role = data["role"].upper()
+                        agent = f" ({data['agent_id']})" if data.get("agent_id") else ""
+                        f.write(f"### [{ts}] {role}{agent}\n\n")
+                        f.write(f"{data['content']}\n\n")
+                    
+                    elif event["type"] == "tool_start":
+                        tool_name = data["tool_name"]
+                        agent = data["agent_id"]
+                        
+                        if tool_name == "think":
+                            thought = data["args"].get("thought", "")
+                            f.write(f"#### [{ts}] {agent} - 🤔 THOUGHT\n\n")
+                            f.write(f"> {thought}\n\n")
+                        elif tool_name not in ["scan_start_info", "subagent_start_info"]:
+                            args_str = ", ".join(f"{k}={v}" for k, v in data["args"].items())
+                            if len(args_str) > 200: args_str = args_str[:197] + "..."
+                            f.write(f"#### [{ts}] {agent} - 🛠️  CALLING TOOL: `{tool_name}`\n\n")
+                            f.write(f"**Arguments:** `{args_str}`\n\n")
+                    
+                    elif event["type"] == "tool_result":
+                        tool_name = data["tool_name"]
+                        if tool_name in ["think", "scan_start_info", "subagent_start_info"]:
+                            continue
+                            
+                        agent = data["agent_id"]
+                        status = data["status"].upper()
+                        result = data.get("result", "")
+                        
+                        f.write(f"**Result ({status}):**\n\n")
+                        f.write(f"```\n{result}\n```\n\n")
+
+            logger.info(f"Saved session log to: {session_log_file}")
             logger.info(f"📊 Essential scan data saved to: {run_dir}")
 
         except (OSError, RuntimeError):
@@ -303,8 +402,6 @@ class Tracer:
         )
 
     def get_total_llm_stats(self) -> dict[str, Any]:
-        from strix.tools.agents_graph.agents_graph_actions import _agent_instances
-
         total_stats = {
             "input_tokens": 0,
             "output_tokens": 0,
@@ -315,7 +412,7 @@ class Tracer:
             "failed_requests": 0,
         }
 
-        for agent_instance in _agent_instances.values():
+        for agent_instance in self._active_agents:
             if hasattr(agent_instance, "llm") and hasattr(agent_instance.llm, "_total_stats"):
                 agent_stats = agent_instance.llm._total_stats
                 total_stats["input_tokens"] += agent_stats.input_tokens

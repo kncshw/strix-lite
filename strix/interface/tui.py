@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import atexit
 import logging
+import os
 import random
 import signal
 import sys
@@ -9,6 +10,7 @@ import threading
 from collections.abc import Callable
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as pkg_version
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 
@@ -277,8 +279,12 @@ class StrixTUIApp(App):  # type: ignore[misc]
     def __init__(self, args: argparse.Namespace):
         super().__init__()
         self.args = args
-        self.scan_config = self._build_scan_config(args)
         self.agent_config = self._build_agent_config(args)
+        self.scan_config = self._build_scan_config(args)
+        
+        # Add model info to scan config for tracing
+        if "llm_config" in self.agent_config:
+            self.scan_config["model_name"] = self.agent_config["llm_config"].model_name
 
         self.tracer = Tracer(self.scan_config["run_name"])
         self.tracer.set_scan_config(self.scan_config)
@@ -387,17 +393,9 @@ class StrixTUIApp(App):  # type: ignore[misc]
             chat_input.set_app_reference(self)
             chat_input_container = Horizontal(chat_prompt, chat_input, id="chat_input_container")
 
-            agents_tree = Tree("🤖 Active Agents", id="agents_tree")
-            agents_tree.root.expand()
-            agents_tree.show_root = False
-
-            agents_tree.show_guide = True
-            agents_tree.guide_depth = 3
-            agents_tree.guide_style = "dashed"
-
             stats_display = Static("", id="stats_display")
 
-            sidebar = Vertical(agents_tree, stats_display, id="sidebar")
+            sidebar = Vertical(stats_display, id="sidebar")
 
             content_container.mount(chat_area_container)
             content_container.mount(sidebar)
@@ -423,33 +421,13 @@ class StrixTUIApp(App):  # type: ignore[misc]
         except (ValueError, Exception):
             self.call_after_refresh(self._focus_chat_input)
 
-    def _focus_agents_tree(self) -> None:
-        if len(self.screen_stack) > 1 or self.show_splash:
-            return
-
-        if not self.is_mounted:
-            return
-
-        try:
-            agents_tree = self.query_one("#agents_tree", Tree)
-            agents_tree.focus()
-
-            if agents_tree.root.children:
-                first_node = agents_tree.root.children[0]
-                agents_tree.select_node(first_node)
-        except (ValueError, Exception):
-            self.call_after_refresh(self._focus_agents_tree)
-
     def on_mount(self) -> None:
         self.title = "strix"
-
         self.set_timer(4.5, self._hide_splash_screen)
 
     def _hide_splash_screen(self) -> None:
         self.show_splash = False
-
         self._start_scan_thread()
-
         self.set_interval(0.5, self._update_ui_from_tracer)
 
     def _update_ui_from_tracer(self) -> None:
@@ -464,29 +442,18 @@ class StrixTUIApp(App):  # type: ignore[misc]
 
         try:
             chat_history = self.query_one("#chat_history", VerticalScroll)
-            agents_tree = self.query_one("#agents_tree", Tree)
 
-            if not self._is_widget_safe(chat_history) or not self._is_widget_safe(agents_tree):
+            if not self._is_widget_safe(chat_history):
                 return
         except (ValueError, Exception):
             return
 
-        agent_updates = False
-        for agent_id, agent_data in self.tracer.agents.items():
-            if agent_id not in self._displayed_agents:
-                self._add_agent_node(agent_data)
-                self._displayed_agents.add(agent_id)
-                agent_updates = True
-            elif self._update_agent_node(agent_id, agent_data):
-                agent_updates = True
-
-        if agent_updates:
-            self._expand_all_agent_nodes()
+        # Auto-select agent if none selected
+        if not self.selected_agent_id and self.tracer.agents:
+            self.selected_agent_id = next(iter(self.tracer.agents.keys()))
 
         self._update_chat_view()
-
         self._update_agent_status_display()
-
         self._update_stats_display()
 
     def _update_agent_node(self, agent_id: str, agent_data: dict[str, Any]) -> bool:
@@ -998,9 +965,9 @@ class StrixTUIApp(App):  # type: ignore[misc]
 
             return UserMessageRenderer.render_simple(escape_markup(content))
 
-        from strix.interface.tool_components.agent_message_renderer import AgentMessageRenderer
-
-        return AgentMessageRenderer.render_simple(content)
+        # Replaced AgentMessageRenderer with simple markdown rendering
+        from rich.markdown import Markdown
+        return str(Markdown(content))
 
     def _render_tool_content_simple(self, tool_data: dict[str, Any]) -> str:
         tool_name = tool_data.get("tool_name", "Unknown Tool")
@@ -1104,11 +1071,18 @@ class StrixTUIApp(App):  # type: ignore[misc]
             )
 
         try:
-            from strix.tools.agents_graph.agents_graph_actions import send_user_message_to_agent
+            # Direct interaction with agent via tracer
+            for agent in self.tracer._active_agents:
+                if agent.state.agent_id == self.selected_agent_id:
+                    agent.state.add_message("user", message)
+                    if agent.state.is_waiting_for_input():
+                        agent.state.resume_from_waiting()
+                        # Also update status in tracer immediately if possible
+                        if self.tracer:
+                            self.tracer.update_agent_status(self.selected_agent_id, "running")
+                    break
 
-            send_user_message_to_agent(self.selected_agent_id, message)
-
-        except (ImportError, AttributeError) as e:
+        except (AttributeError, Exception) as e:
             import logging
 
             logging.warning(f"Failed to send message to agent {self.selected_agent_id}: {e}")
@@ -1211,16 +1185,20 @@ class StrixTUIApp(App):  # type: ignore[misc]
         self.pop_screen()
 
         try:
-            from strix.tools.agents_graph.agents_graph_actions import stop_agent
-
-            result = stop_agent(agent_id)
+            # Direct interaction with agent via tracer
+            stopped = False
+            for agent in self.tracer._active_agents:
+                if agent.state.agent_id == agent_id:
+                    agent.cancel_current_execution()
+                    stopped = True
+                    break
 
             import logging
 
-            if result.get("success"):
-                logging.info(f"Stop request sent to agent: {result.get('message', 'Unknown')}")
+            if stopped:
+                logging.info(f"Stop request sent to agent {agent_id}")
             else:
-                logging.warning(f"Failed to stop agent: {result.get('error', 'Unknown error')}")
+                logging.warning(f"Failed to stop agent: Agent {agent_id} not found")
 
         except Exception:
             import logging
@@ -1274,5 +1252,11 @@ class StrixTUIApp(App):  # type: ignore[misc]
 
 async def run_tui(args: argparse.Namespace) -> None:
     """Run strix in interactive TUI mode with textual."""
+    run_dir = Path("strix_runs") / args.run_name
+    run_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Textual's internal debug logs (useful for developers, but noisy)
+    os.environ["TEXTUAL_LOG"] = str(run_dir / "textual_debug.log")
+
     app = StrixTUIApp(args)
     await app.run_async()

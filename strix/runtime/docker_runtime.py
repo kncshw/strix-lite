@@ -115,6 +115,7 @@ class DockerRuntime(AbstractRuntime):
                         f"{tool_server_port}/tcp": tool_server_port,
                     },
                     cap_add=["NET_ADMIN", "NET_RAW"],
+                    extra_hosts={"host.docker.internal": "host-gateway"},
                     labels={"strix-scan-id": scan_id},
                     environment={
                         "PYTHONUNBUFFERED": "1",
@@ -397,3 +398,42 @@ class DockerRuntime(AbstractRuntime):
             logger.warning("Container %s not found for destruction.", container_id)
         except DockerException as e:
             logger.warning("Failed to destroy container %s: %s", container_id, e)
+
+    async def cleanup(self) -> None:
+        """Cleanup the current scan container if it exists."""
+        if self._scan_container:
+            try:
+                # Attempt to copy /workspace contents to local run directory before destruction
+                from strix.telemetry.tracer import get_global_tracer
+                tracer = get_global_tracer()
+                if tracer:
+                    run_dir = tracer.get_run_dir()
+                    local_workspace = run_dir / "workspace"
+                    self._copy_container_directory_to_local(self._scan_container, "/workspace", local_workspace)
+            except Exception as e:
+                logger.warning(f"Failed to backup workspace before cleanup: {e}")
+                
+            await self.destroy_sandbox(self._scan_container.id)
+
+    def _copy_container_directory_to_local(self, container: Container, container_path: str, local_path: Path) -> None:
+        import tarfile
+        from io import BytesIO
+        
+        try:
+            local_path.mkdir(parents=True, exist_ok=True)
+            # get_archive returns a stream of the tar archive
+            stream, _ = container.get_archive(container_path)
+            
+            tar_data = BytesIO()
+            for chunk in stream:
+                tar_data.write(chunk)
+            tar_data.seek(0)
+            
+            with tarfile.open(fileobj=tar_data) as tar:
+                # The tar contains a single directory 'workspace'
+                # We want to extract its contents into local_path
+                tar.extractall(path=local_path.parent)
+                
+            logger.info(f"Successfully backed up {container_path} to {local_path}")
+        except Exception as e:
+            logger.error(f"Failed to copy directory from container: {e}")

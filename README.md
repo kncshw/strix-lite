@@ -1,10 +1,13 @@
+> [!NOTE]
+> This is a simplified, single-agent version of [Strix](https://github.com/usestrix/strix). This "lite" version focuses on targeted penetration testing with a single autonomous agent, removing the multi-agent orchestration for a more lightweight and direct experience.
+
 <p align="center">
   <a href="https://usestrix.com/">
     <img src=".github/logo.png" width="150" alt="Strix Logo">
   </a>
 </p>
 
-<h1 align="center">Strix</h1>
+<h1 align="center">Strix Lite</h1>
 
 <h2 align="center">Open-source AI Hackers to secure your Apps</h2>
 
@@ -46,7 +49,6 @@ Strix are autonomous AI agents that act just like real hackers - they run your c
 **Key Capabilities:**
 
 - 🔧 **Full hacker toolkit** out of the box
-- 🤝 **Teams of agents** that collaborate and scale
 - ✅ **Real validation** with PoCs, not false positives
 - 💻 **Developer‑first** CLI with actionable reports
 - 🔄 **Auto‑fix & reporting** to accelerate remediation
@@ -127,14 +129,6 @@ Strix can identify and validate a wide range of security vulnerabilities:
 - **Business Logic** - Race conditions, workflow manipulation
 - **Authentication** - JWT vulnerabilities, session management
 - **Infrastructure** - Misconfigurations, exposed services
-
-### 🕸️ Graph of Agents
-
-Advanced multi-agent orchestration for comprehensive security testing:
-
-- **Distributed Workflows** - Specialized agents for different attacks and assets
-- **Scalable Testing** - Parallel execution for fast comprehensive coverage
-- **Dynamic Coordination** - Agents collaborate and share discoveries
 
 ---
 
