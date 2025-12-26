@@ -1,233 +1,122 @@
-> [!NOTE]
-> This is a simplified, single-agent version of [Strix](https://github.com/usestrix/strix). This "lite" version focuses on targeted penetration testing with a single autonomous agent, removing the multi-agent orchestration for a more lightweight and direct experience.
-
 <p align="center">
-  <a href="https://usestrix.com/">
-    <img src=".github/logo.png" width="150" alt="Strix Logo">
+  <a href="https://github.com/kncshw/strix-lite">
+    <img src=".github/logo.png" width="150" alt="Strix Lite Logo">
   </a>
 </p>
 
 <h1 align="center">Strix Lite</h1>
 
-<h2 align="center">Open-source AI Hackers to secure your Apps</h2>
+<h2 align="center">Targeted AI-Powered Penetration Testing</h2>
 
 <div align="center">
 
-[![Python](https://img.shields.io/pypi/pyversions/strix-agent?color=3776AB)](https://pypi.org/project/strix-agent/)
-[![PyPI](https://img.shields.io/pypi/v/strix-agent?color=10b981)](https://pypi.org/project/strix-agent/)
-![PyPI Downloads](https://static.pepy.tech/personalized-badge/strix-agent?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=RED&left_text=Downloads)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-
-[![GitHub Stars](https://img.shields.io/github/stars/usestrix/strix)](https://github.com/usestrix/strix)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/YjKFvEZSdZ)
-[![Website](https://img.shields.io/badge/Website-usestrix.com-2d3748.svg)](https://usestrix.com)
-
-<a href="https://trendshift.io/repositories/15362" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15362" alt="usestrix%2Fstrix | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-
-
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/usestrix/strix)
 
 </div>
 
 <br>
-
-<div align="center">
-  <img src=".github/screenshot.png" alt="Strix Demo" width="800" style="border-radius: 16px;">
-</div>
-
-<br>
-
-> [!TIP]
-> **New!** Strix now integrates seamlessly with GitHub Actions and CI/CD pipelines. Automatically scan for vulnerabilities on every pull request and block insecure code before it reaches production!
-
----
-
-## 🦉 Strix Overview
-
-Strix are autonomous AI agents that act just like real hackers - they run your code dynamically, find vulnerabilities, and validate them through actual proof-of-concepts. Built for developers and security teams who need fast, accurate security testing without the overhead of manual pentesting or the false positives of static analysis tools.
-
-**Key Capabilities:**
-
-- 🔧 **Full hacker toolkit** out of the box
-- ✅ **Real validation** with PoCs, not false positives
-- 💻 **Developer‑first** CLI with actionable reports
-- 🔄 **Auto‑fix & reporting** to accelerate remediation
-
-
-## 🎯 Use Cases
-
-- **Application Security Testing** - Detect and validate critical vulnerabilities in your applications
-- **Rapid Penetration Testing** - Get penetration tests done in hours, not weeks, with compliance reports
-- **Bug Bounty Automation** - Automate bug bounty research and generate PoCs for faster reporting
-- **CI/CD Integration** - Run tests in CI/CD to block vulnerabilities before reaching production
-
----
-
-## 🚀 Quick Start
-
-**Prerequisites:**
-- Docker (running)
-- An LLM provider key (e.g. [get OpenAI API key](https://platform.openai.com/api-keys) or use a local LLM)
-
-### Installation & First Scan
-
-```bash
-# Install Strix
-curl -sSL https://strix.ai/install | bash
-
-# Or via pipx
-pipx install strix-agent
-
-# Configure your AI provider
-export STRIX_LLM="openai/gpt-5"
-export LLM_API_KEY="your-api-key"
-
-# Run your first security assessment
-strix --target ./app-directory
-```
 
 > [!NOTE]
-> First run automatically pulls the sandbox Docker image. Results are saved to `strix_runs/<run-name>`
+> **Strix Lite** is a simplified, single-agent version of the original [Strix](https://github.com/usestrix/strix). It removes complex multi-agent orchestration in favor of a single, highly-capable autonomous agent optimized for targeted vulnerability verification and exploit development.
 
-## ☁️ Run Strix in Cloud
+---
 
-Want to skip the local setup, API keys, and unpredictable LLM costs? Run the hosted cloud version of Strix at **[app.usestrix.com](https://usestrix.com)**.
+## 🦉 Overview
 
-Launch a scan in just a few minutes—no setup or configuration required—and you’ll get:
+Strix Lite is an autonomous AI agent designed to act as a security researcher. It runs code dynamically, identifies potential vulnerabilities, and validates them by creating functional Proof-of-Concepts (PoCs). 
 
-- **A full pentest report** with validated findings and clear remediation steps
-- **Shareable dashboards** your team can use to track fixes over time
-- **CI/CD and GitHub integrations** to block risky changes before production
-- **Continuous monitoring** so new vulnerabilities are caught quickly
+By focusing on a single-agent loop, Strix Lite provides a more direct and transparent testing experience while maintaining the full power of the original Strix toolkit.
 
-[**Run your first pentest now →**](https://usestrix.com)
+**Key Capabilities:**
+- 🔧 **Full hacker toolkit** (Proxy, Browser, Terminal, Python)
+- ✅ **Real validation** via automated PoC development
+- 💻 **Developer-focused** CLI and interactive TUI
+- 🔍 **Targeted Scans** for web apps, repositories, and network targets
+
+---
+
+## 🚀 Quick Start (Local Installation)
+
+Local installation using **Poetry** is the only verified method for running Strix Lite.
+
+### 1. Prerequisites
+- **Python 3.12+**
+- **Poetry**
+- **Docker** (must be running for the sandbox environment)
+- **LLM API Key** (OpenAI or Anthropic recommended)
+
+### 2. Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/kncshw/strix-lite.git
+cd strix-lite
+
+# Install dependencies
+poetry install
+```
+
+### 3. Configuration
+
+Set up your environment variables (or create a `.env` file):
+
+```bash
+# Core Configuration
+export STRIX_LLM="openai/gpt-4o"
+export LLM_API_KEY="your-api-key-here"
+
+# Optional: Real-time Web Search (via Firecrawl)
+export FIRECRAWL_API_KEY="your-firecrawl-key-here"
+```
+
+### 4. Run a Scan
+
+```bash
+# Scan a web application
+poetry run strix --target https://example.com --instruction "Check for SQL injection"
+
+# Analyze a local directory
+poetry run strix --target /path/to/project
+```
 
 ---
 
 ## ✨ Features
 
-### 🛠️ Agentic Security Tools
-
-Strix agents come equipped with a comprehensive security testing toolkit:
-
-- **Full HTTP Proxy** - Full request/response manipulation and analysis
-- **Browser Automation** - Multi-tab browser for testing of XSS, CSRF, auth flows
-- **Terminal Environments** - Interactive shells for command execution and testing
-- **Python Runtime** - Custom exploit development and validation
-- **Reconnaissance** - Automated OSINT and attack surface mapping
-- **Code Analysis** - Static and dynamic analysis capabilities
-- **Knowledge Management** - Structured findings and attack documentation
-
-### 🎯 Comprehensive Vulnerability Detection
-
-Strix can identify and validate a wide range of security vulnerabilities:
-
-- **Access Control** - IDOR, privilege escalation, auth bypass
-- **Injection Attacks** - SQL, NoSQL, command injection
-- **Server-Side** - SSRF, XXE, deserialization flaws
-- **Client-Side** - XSS, prototype pollution, DOM vulnerabilities
-- **Business Logic** - Race conditions, workflow manipulation
-- **Authentication** - JWT vulnerabilities, session management
-- **Infrastructure** - Misconfigurations, exposed services
+- **Autonomous Loop**: The agent researches, executes tools, and iterates until a vulnerability is proven or ruled out.
+- **Sandboxed Execution**: All security tools and custom scripts run inside a secure Docker container.
+- **Integrated HTTP Proxy**: Full visibility and manipulation of web traffic.
+- **Browser Automation**: Interacts with complex web apps just like a human tester.
+- **Detailed Reporting**: Generates comprehensive Markdown reports with reproduction steps.
 
 ---
 
 ## 💻 Usage Examples
 
-### Basic Usage
-
+### Focused Vulnerability Research
 ```bash
-# Scan a local codebase
-strix --target ./app-directory
-
-# Security review of a GitHub repository
-strix --target https://github.com/org/repo
-
-# Black-box web application assessment
-strix --target https://your-app.com
+poetry run strix --target https://api.target.com --instruction "Verify if the /user/debug endpoint is vulnerable to RCE"
 ```
 
-### Advanced Testing Scenarios
-
+### Repository Analysis
 ```bash
-# Grey-box authenticated testing
-strix --target https://your-app.com --instruction "Perform authenticated testing using credentials: user:pass"
-
-# Multi-target testing (source code + deployed app)
-strix -t https://github.com/org/app -t https://your-app.com
-
-# Focused testing with custom instructions
-strix --target api.your-app.com --instruction "Focus on business logic flaws and IDOR vulnerabilities"
-
-# Provide detailed instructions through file (e.g., rules of engagement, scope, exclusions)
-strix --target api.your-app.com --instruction-file ./instruction.md
+poetry run strix -t https://github.com/org/repo --instruction "Find and validate any insecure usage of the 'eval()' function"
 ```
 
-### 🤖 Headless Mode
-
-Run Strix programmatically without interactive UI using the `-n/--non-interactive` flag—perfect for servers and automated jobs. The CLI prints real-time vulnerability findings, and the final report before exiting. Exits with non-zero code when vulnerabilities are found.
-
+### Headless Mode (CI/CD)
 ```bash
-strix -n --target https://your-app.com
+# Run without TUI, perfect for automation
+poetry run strix -n --target https://target.com
 ```
 
-### 🔄 CI/CD (GitHub Actions)
+---
 
-Strix can be added to your pipeline to run a security test on pull requests with a lightweight GitHub Actions workflow:
-
-```yaml
-name: strix-penetration-test
-
-on:
-  pull_request:
-
-jobs:
-  security-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install Strix
-        run: curl -sSL https://strix.ai/install | bash
-
-      - name: Run Strix
-        env:
-          STRIX_LLM: ${{ secrets.STRIX_LLM }}
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-
-        run: strix -n -t ./ --scan-mode quick
-```
-
-### ⚙️ Configuration
-
-```bash
-export STRIX_LLM="openai/gpt-5"
-export LLM_API_KEY="your-api-key"
-
-# Optional
-export LLM_API_BASE="your-api-base-url"  # if using a local model, e.g. Ollama, LMStudio
-export FIRECRAWL_API_KEY="your-api-key"  # for real-time web search capabilities
-```
-
-[OpenAI's GPT-5](https://openai.com/api/) (`openai/gpt-5`) and [Anthropic's Claude Sonnet 4.5](https://claude.com/platform/api) (`anthropic/claude-sonnet-4-5`) are the recommended models for best results with Strix. We also support many [other options](https://docs.litellm.ai/docs/providers), including cloud and local models, though their performance and reliability may vary.
-
-## 🤝 Contributing
-
-We welcome contributions of code, docs, and new prompt modules - check out our [Contributing Guide](CONTRIBUTING.md) to get started or open a [pull request](https://github.com/usestrix/strix/pulls)/[issue](https://github.com/usestrix/strix/issues).
-
-## 👥 Join Our Community
-
-Have questions? Found a bug? Want to contribute? **[Join our Discord!](https://discord.gg/YjKFvEZSdZ)**
-
-## 🌟 Support the Project
-
-**Love Strix?** Give us a ⭐ on GitHub!
 ## 🙏 Acknowledgements
 
-Strix builds on the incredible work of open-source projects like [LiteLLM](https://github.com/BerriAI/litellm), [Caido](https://github.com/caido/caido), [ProjectDiscovery](https://github.com/projectdiscovery), [Playwright](https://github.com/microsoft/playwright), and [Textual](https://github.com/Textualize/textual). Huge thanks to their maintainers!
+Strix Lite is built upon the foundation created by the [Strix](https://github.com/usestrix/strix) team and utilizes incredible open-source projects including [LiteLLM](https://github.com/BerriAI/litellm), [ProjectDiscovery](https://github.com/projectdiscovery), and [Textual](https://github.com/Textualize/textual).
 
+---
 
 > [!WARNING]
-> Only test apps you own or have permission to test. You are responsible for using Strix ethically and legally.
-
-</div>
+> Only test applications you own or have explicit permission to test. You are responsible for using Strix Lite ethically and legally.
