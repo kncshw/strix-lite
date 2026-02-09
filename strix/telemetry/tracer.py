@@ -35,6 +35,7 @@ class Tracer:
         self.chat_messages: list[dict[str, Any]] = []
 
         self.vulnerability_reports: list[dict[str, Any]] = []
+        self.bug_reports: list[dict[str, Any]] = []
         self.final_scan_result: str | None = None
 
         self.scan_results: dict[str, Any] | None = None
@@ -51,8 +52,10 @@ class Tracer:
         self._next_execution_id = 1
         self._next_message_id = 1
         self._saved_vuln_ids: set[str] = set()
+        self._saved_bug_ids: set[str] = set()
 
         self.vulnerability_found_callback: Callable[[str, str, str, str], None] | None = None
+        self.bug_found_callback: Callable[[str, str, str, str], None] | None = None
         self._active_agents: list[Any] = []
 
     def register_agent(self, agent: Any) -> None:
@@ -94,6 +97,33 @@ class Tracer:
 
         if self.vulnerability_found_callback:
             self.vulnerability_found_callback(
+                report_id, title.strip(), content.strip(), severity.lower().strip()
+            )
+
+        self.save_run_data()
+        return report_id
+
+    def add_bug_report(
+        self,
+        title: str,
+        content: str,
+        severity: str,
+    ) -> str:
+        report_id = f"bug-{len(self.bug_reports) + 1:04d}"
+
+        report = {
+            "id": report_id,
+            "title": title.strip(),
+            "content": content.strip(),
+            "severity": severity.lower().strip(),
+            "timestamp": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        }
+
+        self.bug_reports.append(report)
+        logger.info(f"Added bug report: {report_id} - {title}")
+
+        if self.bug_found_callback:
+            self.bug_found_callback(
                 report_id, title.strip(), content.strip(), severity.lower().strip()
             )
 
@@ -276,12 +306,65 @@ class Tracer:
                         f"Saved {len(new_reports)} new vulnerability report(s) to: {vuln_dir}"
                     )
                 logger.info(f"Updated vulnerability index: {vuln_csv_file}")
-            
+
+            if self.bug_reports:
+                bug_dir = run_dir / "bugs"
+                bug_dir.mkdir(exist_ok=True)
+
+                new_bug_reports = [
+                    report
+                    for report in self.bug_reports
+                    if report["id"] not in self._saved_bug_ids
+                ]
+
+                for report in new_bug_reports:
+                    bug_file = bug_dir / f"{report['id']}.md"
+                    with bug_file.open("w", encoding="utf-8") as f:
+                        f.write(f"# {report['title']}\n\n")
+                        f.write(f"**ID:** {report['id']}\n")
+                        f.write(f"**Severity:** {report['severity'].upper()}\n")
+                        f.write(f"**Found:** {report['timestamp']}\n\n")
+                        f.write("## Description\n\n")
+                        f.write(f"{report['content']}\n")
+                    self._saved_bug_ids.add(report["id"])
+
+                if self.bug_reports:
+                    severity_order = {"blocker": 0, "critical": 1, "major": 2, "minor": 3, "trivial": 4}
+                    sorted_bug_reports = sorted(
+                        self.bug_reports,
+                        key=lambda x: (severity_order.get(x["severity"], 5), x["timestamp"]),
+                    )
+
+                    bug_csv_file = run_dir / "bugs.csv"
+                    with bug_csv_file.open("w", encoding="utf-8", newline="") as f:
+                        import csv
+
+                        fieldnames = ["id", "title", "severity", "timestamp", "file"]
+                        writer = csv.DictWriter(f, fieldnames=fieldnames)
+                        writer.writeheader()
+
+                        for report in sorted_bug_reports:
+                            writer.writerow(
+                                {
+                                    "id": report["id"],
+                                    "title": report["title"],
+                                    "severity": report["severity"].upper(),
+                                    "timestamp": report["timestamp"],
+                                    "file": f"bugs/{report['id']}.md",
+                                }
+                            )
+
+                if new_bug_reports:
+                    logger.info(
+                        f"Saved {len(new_bug_reports)} new bug report(s) to: {bug_dir}"
+                    )
+                logger.info(f"Updated bug index: {bug_csv_file}")
+
             # Save human-readable session log in Markdown format
             session_log_file = run_dir / "session_log.md"
-            
+
             with session_log_file.open("w", encoding="utf-8") as f:
-                f.write(f"# Strix Penetration Test Session Log\n\n")
+                f.write("# Strix Testing Session Log\n\n")
                 f.write(f"- **Run ID:** `{self.run_id}`\n")
                 f.write(f"- **Start Time:** {self.start_time}\n")
                 if self.end_time:

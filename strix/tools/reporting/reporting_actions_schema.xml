@@ -27,4 +27,40 @@ DO NOT USE:
       <description>Response containing success status and message</description>
     </returns>
   </tool>
+
+  <tool name="create_bug_report">
+    <description>Create a bug report for a discovered QA issue (non-security).
+
+Use this tool to document functional bugs, UI/UX issues, integration failures, or any other quality issues found during testing.
+Put ALL details in the content field - affected pages/endpoints, environment details, reproduction steps, expected vs actual behavior, screenshots description, frequency, etc.
+
+USE FOR:
+- Functional bugs (features not working as expected)
+- UI/UX issues (layout problems, confusing interfaces, accessibility issues)
+- Integration failures (data not syncing, API contract violations)
+- Edge case failures (boundary conditions, special characters handling)
+- Performance issues (slow responses, timeouts)
+- Data integrity issues (incorrect calculations, data loss)
+- Error handling issues (poor error messages, unhandled exceptions)
+
+DO NOT USE:
+- For security vulnerabilities (use create_vulnerability_report instead)
+- When you're not sure if it's actually a bug
+- For multiple bugs at once (create separate reports)
+</description>
+    <parameters>
+      <parameter name="title" type="string" required="true">
+        <description>Clear, descriptive title of the bug</description>
+      </parameter>
+      <parameter name="content" type="string" required="true">
+        <description>Complete bug details including: environment (browser, OS, viewport), preconditions, step-by-step reproduction instructions, expected behavior, actual behavior, evidence/screenshots description, and frequency (always/intermittent/rare). Be comprehensive.</description>
+      </parameter>
+      <parameter name="severity" type="string" required="true">
+        <description>Severity level: blocker (system unusable), critical (major feature broken), major (significant impact), minor (minor inconvenience), or trivial (cosmetic)</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>Response containing success status and message</description>
+    </returns>
+  </tool>
 </tools>
